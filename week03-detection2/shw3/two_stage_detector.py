@@ -1030,3 +1030,5 @@ class FasterRCNN(nn.Module):
         pred_classes = pred_classes[keep]
         pred_scores = pred_scores[keep]
         return pred_boxes, pred_classes, pred_scores
+
+# WHAT THE FUCK WAS THAT ??
