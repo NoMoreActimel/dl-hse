@@ -17,7 +17,7 @@ from torchvision.models import feature_extraction
 TensorDict = Dict[str, torch.Tensor]
 
 class DetectorBackboneWithFPN(nn.Module):
-    r"""
+    """
     Detection backbone network: A tiny RegNet model coupled with a Feature
     Pyramid Network (FPN). This model takes in batches of input images with
     shape `(B, 3, H, W)` and gives features from three different FPN levels
@@ -92,12 +92,11 @@ class DetectorBackboneWithFPN(nn.Module):
             getattr(_cnn.trunk_output, f"block{block_idx+2}")[-1].f[-1][0].out_channels
             for block_idx in range(self.n_layers)
         ]
-        self.fpn_out_channels = max(backbone_blocks_output_channels)
 
         self.fpn_params.update({
             f"FPN_Conv1x1_block{block_idx+2}": nn.Conv2d(
                 in_channels=block_output_channels,
-                out_channels=self.fpn_out_channels,
+                out_channels=self.out_channels,
                 kernel_size=1
             )
             for block_idx, block_output_channels in enumerate(backbone_blocks_output_channels)
@@ -105,8 +104,8 @@ class DetectorBackboneWithFPN(nn.Module):
 
         self.fpn_params.update({
             f"FPN_Conv3x3_block{block_idx+2}": nn.Conv2d(
-                in_channels=self.fpn_out_channels,
-                out_channels=self.fpn_out_channels,
+                in_channels=self.out_channels,
+                out_channels=self.out_channels,
                 kernel_size=3,
                 padding=1
             )
@@ -202,11 +201,12 @@ def get_fpn_location_coords(
         feat_stride = strides_per_fpn_level[level_name]
 
         H, W = feat_shape[-2], feat_shape[-1]
-        h_coords = torch.arange(H, device=device).unsquueze(1).repeat(1, W).reshape(-1)
+        h_coords = torch.arange(H, device=device).unsqueeze(1).repeat(1, W).reshape(-1)
         w_coords = torch.arange(W, device=device).unsqueeze(0).repeat(H, 1).reshape(-1)
 
         location_coords[level_name] = torch.vstack([h_coords, w_coords]).T
-        location_coords[level_name] /= feat_stride
+        location_coords[level_name] *= feat_stride
+        location_coords[level_name] += feat_stride // 2
 
         ######################################################################
         #                             END OF YOUR CODE                       #
@@ -266,11 +266,11 @@ class FCOSPredictionNetwork(nn.Module):
                     in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=3,
-                    padding=0
+                    padding=1
                 ))
                 nn.init.normal_(stem[-1].weight, mean=0.0, std=1.0)
                 nn.init.zeros_(stem[-1].bias)
-                stem.append(nn.ReLu())
+                stem.append(nn.ReLU())
             
             in_channels = out_channels
 
@@ -294,23 +294,24 @@ class FCOSPredictionNetwork(nn.Module):
         #
         ######################################################################
 
-        # Replace these lines with your code, keep variable names unchanged.
+        self.num_classes = num_classes
+
         self.pred_cls = nn.Conv2d(
             in_channels=in_channels,
             out_channels=num_classes,
-            kernel=3,
+            kernel_size=3,
             padding=1
         )  # Class conv
         self.pred_box = nn.Conv2d(
             in_channels=in_channels,
             out_channels=4,
-            kernel=3,
+            kernel_size=3,
             padding=1
         )  # Box regression conv
         self.pred_ctr = nn.Conv2d(
             in_channels=in_channels,
             out_channels=1,
-            kernel=3,
+            kernel_size=3,
             padding=1
         )  # Centersness conv
 
@@ -381,9 +382,12 @@ class FCOSPredictionNetwork(nn.Module):
         for level_name, features in feats_per_fpn_level.items():
             stem_cls_features = self.stem_cls(features)
             stem_box_features = self.stem_box(features)
-            class_logits[level_name] = self.pred_cls(stem_cls_features)
-            boxreg_deltas[level_name] = self.pred_box(stem_box_features)
-            centerness_logits[level_name] = self.pred_ctr(stem_box_features)
+
+            B, _, H, W = stem_cls_features.shape
+
+            class_logits[level_name] = self.pred_cls(stem_cls_features).view(B, H * W, self.num_classes)
+            boxreg_deltas[level_name] = self.pred_box(stem_box_features).view(B, H * W, 4)
+            centerness_logits[level_name] = self.pred_ctr(stem_box_features).view(B, H * W, 1)
 
         ######################################################################
         #                           END OF YOUR CODE                         #
@@ -563,10 +567,16 @@ def fcos_apply_deltas_to_locations(
     # box. Make sure to clip them to zero.                                   #
     ##########################################################################
 
-    deltas = deltas * stride
+    background_box = torch.tensor([-1, -1, -1, -1], device=locations.device)
+    deltas = torch.where(
+        deltas == background_box,
+        torch.zeros(4, device=locations.device),
+        deltas
+    ) * stride
+
     output_boxes = torch.zeros_like(deltas)
-    output_boxes[:, [0, 3]] = locations - deltas[:, [0, 3]]
-    output_boxes[:, [1, 2]] = locations + deltas[:, [1, 2]]
+    output_boxes[:, :2] = locations - deltas[:, :2]
+    output_boxes[:, 2:] = locations + deltas[:, 2:]
 
     ##########################################################################
     #                             END OF YOUR CODE                           #
@@ -596,10 +606,10 @@ def fcos_make_centerness_targets(deltas: torch.Tensor):
     # TODO: Implement the centerness calculation logic.                      #
     ##########################################################################
 
-    l, r, t, b = [deltas[:, i] for i in range(4)]
-    centerness = torch.sqrt(min(l, r) / max(l, r) * min(t, b) / max(t, b))
+    l, t, r, b = [deltas[:, i] for i in range(4)]
+    centerness = torch.sqrt(torch.min(l, r) / torch.max(l, r) * torch.min(t, b) / torch.max(t, b))
     background_box = torch.tensor([-1, -1, -1, -1], device=deltas.device)
-    centerness = torch.where(centerness == background_box, background_box, centerness)
+    centerness[(deltas == background_box).sum(dim=-1) == 4] = -1
 
     ##########################################################################
     #                             END OF YOUR CODE                           #
@@ -821,21 +831,23 @@ class FCOS(nn.Module):
         matched_gt_deltas = []
 
         for sample_matched_gt_boxes in matched_gt_boxes:
+            matched_gt_deltas.append({})
             for level_name, level_matched_gt_boxes in sample_matched_gt_boxes.items():
-                matched_gt_deltas.append(fcos_get_deltas_from_locations(
+                matched_gt_deltas[-1][level_name] = fcos_get_deltas_from_locations(
                     locations=locations_per_fpn_level[level_name],
                     stride=self.backbone.fpn_strides[level_name],
                     gt_boxes=level_matched_gt_boxes
-                ))
+                )
         
         # centerness too
         matched_gt_centerness = []
 
         for sample_matched_gt_deltas in matched_gt_deltas:
+            matched_gt_centerness.append({})
             for level_name, level_matched_gt_deltas in sample_matched_gt_deltas.items():
-                matched_gt_centerness.append(fcos_make_centerness_targets(
+                matched_gt_centerness[-1][level_name] = fcos_make_centerness_targets(
                     deltas=level_matched_gt_deltas
-                ))
+                )
 
         ######################################################################
         #                           END OF YOUR CODE                         #
@@ -871,7 +883,7 @@ class FCOS(nn.Module):
         # Feel free to delete this line: (but keep variable names same)
 
         loss_cls = sigmoid_focal_loss(
-            inputs=pred_cls_logits, targets=matched_gt_boxes[:, : 4]
+            inputs=pred_cls_logits, targets=F.one_hot(matched_gt_boxes[:, :, 4])
         )
 
         loss_box = F.l1_loss(
