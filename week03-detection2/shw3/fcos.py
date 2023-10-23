@@ -267,7 +267,7 @@ class FCOSPredictionNetwork(nn.Module):
                     kernel_size=3,
                     padding=1
                 ))
-                nn.init.normal_(stem[-1].weight, mean=0.0, std=1.0)
+                nn.init.normal_(stem[-1].weight, mean=0.0, std=0.01)
                 nn.init.zeros_(stem[-1].bias)
                 stem.append(nn.ReLU())
             
@@ -915,7 +915,6 @@ class FCOS(nn.Module):
             "loss_box": loss_box.sum() / (self._normalizer * images.shape[0]),
             "loss_ctr": loss_ctr.sum() / (self._normalizer * images.shape[0]),
         }
-        print(loss)
         return loss
 
     @staticmethod
