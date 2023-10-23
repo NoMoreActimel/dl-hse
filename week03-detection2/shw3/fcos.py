@@ -656,32 +656,41 @@ def nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float = 0.5):
 
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
     boxes_order = torch.argsort(scores, descending=True)
-    boxes = boxes[boxes_order]
-
-    kept_boxes_mask = np.ones(boxes.shape[0], device=boxes.device)
-    kept_boxes = boxes[kept_boxes_mask]
-
-    for box_ind, box in enumerate(boxes):
+    
+    kept_boxes_mask = torch.ones(boxes.shape[0], dtype=torch.bool, device=boxes.device)
+    lower_scores_mask = torch.ones(boxes.shape[0], dtype=torch.bool, device=boxes.device)
+    
+    for ord_ind in range(boxes.shape[0]):
+        box_ind = boxes_order[ord_ind]
+        lower_scores_mask[box_ind] = False
+        
         if kept_boxes_mask[box_ind]:
-            box = box.view(1, -1)
+            current_boxes_mask = kept_boxes_mask & lower_scores_mask
+            
+            box = boxes[box_ind].view(1, -1)
+            current_boxes = boxes[current_boxes_mask]
+            
+            bounds = {
+                "max_left": torch.maximum(box[:, 0], current_boxes[:, 0]),
+                "min_top": torch.maximum(box[:, 1], current_boxes[:, 1]),
+                "min_right": torch.minimum(box[:, 2], current_boxes[:, 2]),
+                "max_bottom": torch.minimum(box[:, 3], current_boxes[:, 3])
+            }
 
-            bounds = {}
-            for i, name in enumerate(["max_left", "min_top", "min_right", "max_bottom"]):
-                bounds[name] = torch.max(box[:, i], kept_boxes[:, i])
-
-            Hs = torch.max(bounds["min_top"] - bounds["max_bottom"], 0)
-            Ws = torch.max(bounds["min_right"] - bounds["max_left"], 0)
+            Hs = bounds["max_bottom"] - bounds["min_top"]
+            Hs[Hs < 0] = 0
+            Ws = bounds["min_right"]- bounds["max_left"]
+            Ws[Ws < 0] = 0
 
             intersection_areas = Hs * Ws
-            union_areas = areas[box_ind] + areas[kept_boxes_mask] - intersection_areas
+            union_areas = areas[box_ind] + areas[current_boxes_mask] - intersection_areas
 
             iou = intersection_areas / union_areas
-            removed_indices = (iou > iou_threshold).nonzero()
-
-            kept_boxes_mask[removed_indices] = 0
-            kept_boxes_mask[box_ind] = 1
+            iou_full = torch.zeros(boxes.shape[0], device=boxes.device)
+            iou_full[current_boxes_mask] = iou
+            kept_boxes_mask[iou_full > iou_threshold] = False
     
-    kept = kept_boxes_mask.nonzero()
+    kept = kept_boxes_mask.nonzero().reshape(-1)
     
     #############################################################################
     #                              END OF YOUR CODE                             #
@@ -995,19 +1004,29 @@ class FCOS(nn.Module):
             #      and width of input image.
             ##################################################################
 
-            # Compute geometric mean of class logits and centerness:
+            # Compute geometric mean of class logits and centerness:            
             level_pred_scores = torch.sqrt(
                 level_cls_logits.sigmoid_() * level_ctr_logits.sigmoid_()
             )
+            
+            level_pred_classes = torch.argmax(level_pred_scores, dim=-1)
+            level_pred_scores = torch.max(level_pred_scores, dim=-1)[0]
+            level_pred_mask = level_pred_classes > test_score_thresh
 
-            level_pred_mask = level_pred_scores > test_score_thresh
-            level_pred_boxes = level_deltas[:, level_pred_mask]
-            level_pred_classes = level_cls_logits.argmax(dim=-1)[:, level_pred_mask]
+            level_pred_scores = level_pred_scores[level_pred_mask]
+            level_pred_classes = level_pred_classes[level_pred_mask]
+            level_pred_boxes = level_deltas[level_pred_mask]
 
             # Use `images` to get (height, width) for clipping.
             height, width = images.shape[-2:]
-            level_pred_boxes[:, :, [0, 2]] = torch.min(level_pred_boxes[:, :, [0, 2]], width)
-            level_pred_boxes[:, :, [1, 3]] = torch.min(level_pred_boxes[:, :, [1, 3]], height)
+            level_pred_boxes[:, [0, 2]] = torch.where(
+                level_pred_boxes[:, [0, 2]] > width,
+                width, level_pred_boxes[:, [0, 2]]
+            )
+            level_pred_boxes[:, [1, 3]] = torch.where(
+                level_pred_boxes[:, [1, 3]] > height,
+                height, level_pred_boxes[:, [1, 3]]
+            )
 
             ##################################################################
             #                          END OF YOUR CODE                      #
