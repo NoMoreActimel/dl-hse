@@ -114,6 +114,8 @@ class DetectorBackboneWithFPN(nn.Module):
         for param_name, param in self.fpn_params.items():
             nn.init.normal_(param.weight, mean=0.0, std=0.01)
             nn.init.zeros_(param.bias)
+        
+        self.activation = nn.ReLU()
 
         ######################################################################
         #                            END OF YOUR CODE                        #
@@ -153,6 +155,11 @@ class DetectorBackboneWithFPN(nn.Module):
                 size=fpn_feats[f"p{layer_idx+3}"].shape[-2:],
                 mode='nearest'
             )
+        
+        fpn_feats = {
+            layer_name: self.activation(layer_feats)
+            for layer_name, layer_feats in fpn_feats.items()
+        }
 
         ######################################################################
         #                            END OF YOUR CODE                        #
@@ -269,7 +276,6 @@ class FCOSPredictionNetwork(nn.Module):
                 ))
                 nn.init.normal_(stem[-1].weight, mean=0.0, std=0.01)
                 nn.init.zeros_(stem[-1].bias)
-                stem.append(nn.ReLU())
             
             in_channels = out_channels
 
