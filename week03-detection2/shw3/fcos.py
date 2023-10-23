@@ -881,12 +881,19 @@ class FCOS(nn.Module):
         ######################################################################
         # Feel free to delete this line: (but keep variable names same)
 
-        mask = matched_gt_boxes[:, :, 4] != -1
-        targets = F.one_hot(matched_gt_boxes[mask, 4].long(), num_classes=self.num_classes)
+        # mask = matched_gt_boxes[:, :, 4] != -1
+        # targets = F.one_hot(matched_gt_boxes[mask][:, 4].long(), num_classes=self.num_classes)
 
+        # loss_cls = sigmoid_focal_loss(
+        #     inputs=pred_cls_logits[mask], targets=targets.float()
+        # )
+
+        targets = torch.where(matched_gt_boxes < 0, 0, matched_gt_boxes)
+        targets = F.one_hot(targets[:, :, 4].long(), num_classes=self.num_classes)
         loss_cls = sigmoid_focal_loss(
-            inputs=pred_cls_logits[mask], targets=targets.float()
+            inputs=pred_cls_logits, targets=targets.float()
         )
+        loss_cls[matched_gt_boxes[:, :, 4] < 0] *= 0.0
 
         loss_box = F.l1_loss(
             pred_boxreg_deltas, matched_gt_deltas, reduction="none"
@@ -903,11 +910,13 @@ class FCOS(nn.Module):
         ######################################################################
         # Sum all locations and average by the EMA of foreground locations.
         # In training code, we simply add these three and call `.backward()`
-        return {
+        loss = {
             "loss_cls": loss_cls.sum() / (self._normalizer * images.shape[0]),
             "loss_box": loss_box.sum() / (self._normalizer * images.shape[0]),
             "loss_ctr": loss_ctr.sum() / (self._normalizer * images.shape[0]),
         }
+        print(loss)
+        return loss
 
     @staticmethod
     def _cat_across_fpn_levels(
