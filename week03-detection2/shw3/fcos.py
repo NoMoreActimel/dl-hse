@@ -1015,7 +1015,11 @@ class FCOS(nn.Module):
 
             level_pred_scores = level_pred_scores[level_pred_mask]
             level_pred_classes = level_pred_classes[level_pred_mask]
-            level_pred_boxes = level_deltas[level_pred_mask]
+            level_pred_deltas = level_deltas[level_pred_mask]
+            level_pred_boxes = fcos_apply_deltas_to_locations(
+                level_pred_deltas, level_locations,
+                self.backbone.fpn_strides[level_name]
+            )
 
             # Use `images` to get (height, width) for clipping.
             height, width = images.shape[-2:]
