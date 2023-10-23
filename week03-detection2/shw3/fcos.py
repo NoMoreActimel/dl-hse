@@ -7,7 +7,6 @@ from lib.utils import *
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data._utils.collate import default_collate
-from torchmetrics.detection import IntersectionOverUnion
 from torchvision.ops import sigmoid_focal_loss
 from torchvision import models
 from torchvision.models import feature_extraction
@@ -882,8 +881,11 @@ class FCOS(nn.Module):
         ######################################################################
         # Feel free to delete this line: (but keep variable names same)
 
+        mask = matched_gt_boxes[:, :, 4] != -1
+        targets = F.one_hot(matched_gt_boxes[mask, 4].long(), num_classes=self.num_classes)
+
         loss_cls = sigmoid_focal_loss(
-            inputs=pred_cls_logits, targets=F.one_hot(matched_gt_boxes[:, :, 4])
+            inputs=pred_cls_logits[mask], targets=targets.float()
         )
 
         loss_box = F.l1_loss(
@@ -892,7 +894,7 @@ class FCOS(nn.Module):
         loss_box[matched_gt_deltas < 0] *= 0.0
 
         loss_ctr = F.binary_cross_entropy_with_logits(
-            pred_ctr_logits, matched_gt_centerness, reduction="none"
+            pred_ctr_logits, matched_gt_centerness.unsqueeze(2), reduction="none"
         )
         loss_ctr[matched_gt_centerness < 0] *= 0.0
 
