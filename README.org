@@ -1,6 +1,6 @@
 #+title: Deep Learning 2
 
-This repo contains homeworks and lecture slides for the Deep Learning
+This repo contains homework and lecture slides for the Deep Learning
 course at the [[https://cs.hse.ru/en/][Faculty of Computer Science]] of [[https://www.hse.ru/en/][HSE University]]. Previous
 versions of the course are available at https://github.com/mryab/dl-hse-ami and https://github.com/aosokin/dl_cshse_ami
 
@@ -14,28 +14,27 @@ versions of the course are available at https://github.com/mryab/dl-hse-ami and 
 ** week 3: Computer vision (detection2)
 - Lecture by [[https://alexanderdyakonov.wordpress.com/ag/][Alexander Dyakonov]] ([[file:week03-detection2/DL_2CV_04objectdetection_lec02.pdf][slides]])
 - FCOS detector ([[file:week03-detection2/shw3/readme.md][shw3]])
-
 ** week 4: Neural Fields
 - Lecture by [[https://www.hse.ru/en/org/persons/165140955][Kirill Struminsky]] ([[file:week04-neural-fields/lecture_16_10_23.pdf][slides]])
 ** week 5: Transformers (architectures)
-- Lecture by TBD
-- homework: implementing transformer and linear attention (ipynb)
-- *BIG* homework-1 ~<<<start~
+- Lecture by [[https://www.hse.ru/org/persons/190912012][Ivan Rubachev]] ([[file:week05-transformers/lecture-slides.pdf][slides]])
+- homework: implementing transformer and linear attention ([[file:week05-transformers/shw4/homework.ipynb][ipynb]])
 ** week 6: Transformers (LLMs, interpretability)
-- Lecture by TBd
-** week 7: Generative models (VAE, GAN)
-- Lecture by [[https://www.hse.ru/org/persons/190918370][Aziz Temirkhanov]]
-- *BIG* homework-2 ~<<<start~
-- GAN homework (ipynb)
-** week 8: Generative Models (Diffusion)
-- Lecture by [[https://www.hse.ru/org/persons/190918370][Aziz Temirkhanov]]
-- diffusion homework (ipynb)
-- *BIG* homework-1 ~end>>>~
+- Lecture by [[https://github.com/puhsu][Ivan Rubachev]] ([[file:week06-transformers/lecture-slides.pdf][slides]])
+- *BIG* homework-1 ([[file:week06-transformers/bhw01/README.md][readme]])
+** week 7: Generative models (Intro to divergences and GANs)
+- Lecture by [[https://www.hse.ru/org/persons/190918370][Aziz Temirkhanov]] ([[file:week07-GANs/GANs.pdf][slides]]) ([[file:week07-GANs/GANs-evolution.pdf][Evolution slides]]) 
+** week 8: Generative Models (VAE, Diffusion)
+- Lecture by [[https://www.hse.ru/org/persons/190918370][Aziz Temirkhanov]] ([[file:week08-VAE-Diff/VAE.pdf][VAE slides]]) ([[file:week08-VAE-Diff/Diffusion.pdf][Diffusion slides]]) 
+- diffusion homework ([[file:week08-VAE-Diff/shw5/homework.ipynb][ipynb]])
+- big homework ([[file:week08-VAE-Diff/bhw02/readme.md][readme]])
 ** week 9: Graph neural networks
-- Lecture by TBD
-- gnn homework (ipynb)
+- Lecture by [[https://www.hse.ru/org/persons/208486877][Gleb Bazhenov]] ([[file:week09-GNN/lecture-slides.pdf][slides]])
+- Seminar by [[https://www.hse.ru/org/persons/137327627][Oleg Platonov]]
+- gnn homework ([[file:week09-GNN/shw06.ipynb][ipynb]])
+
 ** week 10: Tabular Deep Learning
 - Lecture by [[https://github.com/Yura52][Yura Gorihsniy]]
-- *BIG* homework-2 ~end>>>~
+- *BIG* homework-2 
 - tabular homework (ipynb)
 
